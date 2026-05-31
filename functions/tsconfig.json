@@ -1,0 +1,20 @@
+{
+  "comment": "Cloudflare Pages Functions run in the Workers runtime, not the DOM. They get their own tsconfig (Workers types, no DOM lib) so app code and edge code never share an incompatible global environment.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}

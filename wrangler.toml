@@ -1,0 +1,24 @@
+# Cloudflare Pages config for web-ar-instrument.
+#
+# This file is COMMITTED and contains NO SECRETS. The values below are placeholders;
+# a deployer sets the real binding + variables in their own Cloudflare Pages project
+# settings (dashboard) or a local untracked `.dev.vars` for `wrangler pages dev`.
+# Secrets (the CI deploy API token) live in GitHub Actions secrets, never here.
+
+name = "web-ar-instrument"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"
+
+# R2 bucket for captured recordings + diagnostics. Create your own bucket and bind
+# it as RECORDINGS. The bucket is reachable ONLY through the Access-gated functions.
+[[r2_buckets]]
+binding = "RECORDINGS"
+bucket_name = "REPLACE_WITH_YOUR_BUCKET"
+
+# Non-secret deploy config. These are public identifiers (a team domain, an Access
+# application AUD tag, an allowed origin) — NOT credentials. Set the real values in
+# your Pages project's environment variables.
+[vars]
+CF_ACCESS_TEAM_DOMAIN = "https://YOUR-TEAM.cloudflareaccess.com"
+CF_ACCESS_AUD = "REPLACE_WITH_YOUR_ACCESS_APP_AUD"
+ALLOWED_ORIGIN = "https://REPLACE_WITH_YOUR_DEPLOYMENT_ORIGIN"

@@ -231,7 +231,7 @@ function diagFlush() {
   } catch { /* fall through */ }
   fetch(diagUrl, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
-    keepalive: true,
+    keepalive: true, credentials: 'include',
   }).catch(() => { /* swallow */ });
 }
 function diag(tag: string, msg: string, data?: unknown) {
@@ -1601,6 +1601,7 @@ function mountCaptureBtn() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: jsonBody,
+          credentials: 'include', // send the Access cookie (needed for a cross-origin backend)
         });
         diag('capture', `POST /api/recording responded: status=${res.status} ok=${res.ok} in ${((performance.now() - uploadStart) / 1000).toFixed(2)}s`);
         if (!res.ok) {
@@ -1621,6 +1622,7 @@ function mountCaptureBtn() {
               method: 'POST',
               headers: { 'Content-Type': mediaMimeType },
               body: videoBlob,
+              credentials: 'include',
             });
             diag('capture', `POST video responded: status=${vres.status} ok=${vres.ok} in ${((performance.now() - vStart) / 1000).toFixed(2)}s`);
             if (vres.ok) {
