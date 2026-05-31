@@ -89,10 +89,13 @@ describe('gyroLocarPose ↔ AD adapter round-trip', () => {
     expect(dot).toBeCloseTo(1, 6); // same rotation AD would render
   });
 
-  it('returns false when sensors are missing', () => {
+  it('returns false when sensors are missing — incl. tilt (no fabricated level pose)', () => {
     const ys: YawState = { yaw: null, lastT: null };
     const out: Quat = { x: 0, y: 0, z: 0, w: 1 };
     expect(gyroLocarPose(out, inputs({ gravity: null }), ys, 0)).toBe(false);
     expect(gyroLocarPose(out, inputs({ rotationRate: null }), ys, 0)).toBe(false);
+    // tilt is required for a correct pose — null beta/gamma must NOT report a valid level pose
+    expect(gyroLocarPose(out, inputs({ betaDeg: null }), ys, 0)).toBe(false);
+    expect(gyroLocarPose(out, inputs({ gammaDeg: null }), ys, 0)).toBe(false);
   });
 });

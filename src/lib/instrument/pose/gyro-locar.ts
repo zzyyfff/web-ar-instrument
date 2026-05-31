@@ -84,9 +84,15 @@ export function composeGyroLocarQuat(
  */
 export function gyroLocarPose(out: Quat, inp: GyroLocarInputs, ys: YawState, nowSec: number): boolean {
   if (inp.gravity == null || inp.rotationRate == null) return false;
+  // Tilt (pitch/roll) comes from device beta/gamma. Without them we cannot compose a correct
+  // pose, so return false rather than fabricating a level (0,0) attitude — the boolean is a
+  // validity contract that consumers rely on, and a fabricated "valid" level pose is worse than
+  // a clean "not ready" (e.g. motion samples arriving before orientation). Found by adversarial
+  // review; the source copy in gizmo-portfolio has the same latent issue and should match.
+  if (inp.betaDeg == null || inp.gammaDeg == null) return false;
   const gmag = Math.hypot(inp.gravity.x, inp.gravity.y, inp.gravity.z);
   if (gmag < 0.1) return false;
   advanceGyroYaw(ys, inp, nowSec);
-  composeGyroLocarQuat(out, ys.yaw ?? 0, inp.betaDeg ?? 0, inp.gammaDeg ?? 0, inp.screenOrientationDeg);
+  composeGyroLocarQuat(out, ys.yaw ?? 0, inp.betaDeg, inp.gammaDeg, inp.screenOrientationDeg);
   return true;
 }
