@@ -22,29 +22,28 @@ import { BACKEND_BASE, hasBackend } from './lib/backend';
 
 declare const __BUILD_ID__: string;
 
-// Local / no-upload save (the BYO-backend default): trigger a file download so a
-// capture can leave the device without any remote storage being involved. A deployer
-// who wires the secure, Access-gated backend (build plan P3) gets upload instead;
-// see lib/backend.ts. This is also what makes a public read-only mode possible later.
-function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
+// Local / no-upload save (the BYO-backend default). Rather than a synthetic click
+// after the async capture — which browsers may block without a fresh user gesture,
+// silently losing the capture while the UI reports success — we mint object URLs and
+// hand them back as user-tappable download links (the tap supplies the activation, so
+// it can't fail silently). A deployer who wires the secure, Access-gated backend
+// (build plan P3) gets upload instead; see lib/backend.ts. This local path is also
+// what makes a future public read-only mode possible.
+interface LocalDownload { filename: string; url: string }
 
 function saveRecordingLocally(
   jsonBody: string, durationMs: number, videoBlob: Blob | null, videoExt: string,
-): { id: string; size_bytes: number; duration_s: number; ts: string } {
+): { result: { id: string; size_bytes: number; duration_s: number; ts: string }; downloads: LocalDownload[] } {
   const ts = new Date().toISOString();
   const id = 'rec_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  downloadBlob(new Blob([jsonBody], { type: 'application/json' }), `${id}.json`);
-  if (videoBlob) downloadBlob(videoBlob, `${id}.${videoExt}`);
-  return { id, size_bytes: jsonBody.length, duration_s: Math.round(durationMs / 100) / 10, ts };
+  const downloads: LocalDownload[] = [
+    { filename: `${id}.json`, url: URL.createObjectURL(new Blob([jsonBody], { type: 'application/json' })) },
+  ];
+  if (videoBlob) downloads.push({ filename: `${id}.${videoExt}`, url: URL.createObjectURL(videoBlob) });
+  return {
+    result: { id, size_bytes: jsonBody.length, duration_s: Math.round(durationMs / 100) / 10, ts },
+    downloads,
+  };
 }
 
 const DEFAULT_FOV_DEG = 60; // horizontal FOV assumption; URL ?fov=N overrides
@@ -393,13 +392,21 @@ async function startCamera() {
 // the user-gesture context, iOS rejects silently and the prompt never appears.
 // → call this only from inside an onclick/touchstart handler.
 async function requestSensorPermission(): Promise<boolean> {
-  const DME = DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> };
-  if (typeof DME.requestPermission === 'function') {
+  // Reference the constructors as window properties, NOT bare globals: on browsers
+  // that don't expose them (many desktops, unsupported contexts) a bare reference
+  // throws ReferenceError, which would crash the gate instead of falling back to
+  // the intended static/no-motion behavior. A missing property is just undefined.
+  const w = window as unknown as {
+    DeviceMotionEvent?: { requestPermission?: () => Promise<string> };
+    DeviceOrientationEvent?: { requestPermission?: () => Promise<string> };
+  };
+  const DME = w.DeviceMotionEvent;
+  if (DME && typeof DME.requestPermission === 'function') {
     const r = await DME.requestPermission();
     if (r !== 'granted') return false;
   }
-  const DOE = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
-  if (typeof DOE.requestPermission === 'function') {
+  const DOE = w.DeviceOrientationEvent;
+  if (DOE && typeof DOE.requestPermission === 'function') {
     try { await DOE.requestPermission(); } catch { /* non-fatal */ }
   }
   return true;
@@ -1204,7 +1211,11 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)}MB`;
 }
 
-function showToast(payload: { id?: string; size_bytes?: number; duration_s?: number; error?: string }, ok: boolean) {
+function showToast(
+  payload: { id?: string; size_bytes?: number; duration_s?: number; error?: string },
+  ok: boolean,
+  downloads?: LocalDownload[],
+) {
   let toast = document.querySelector('.capture-toast') as HTMLDivElement | null;
   if (!toast) {
     toast = document.createElement('div');
@@ -1213,12 +1224,32 @@ function showToast(payload: { id?: string; size_bytes?: number; duration_s?: num
   }
   toast.hidden = false;
   toast.classList.toggle('error', !ok);
+  // Build via textContent + createElement (never innerHTML) — the values are ours,
+  // but routing text through textContent and links through DOM nodes is the habit
+  // worth copying.
+  toast.textContent = '';
+  const msg = document.createElement('div');
+  const hasDownloads = !!downloads && downloads.length > 0;
   if (payload.error) {
-    toast.textContent = `Capture failed: ${payload.error}`;
+    msg.textContent = `Capture failed: ${payload.error}`;
+  } else if (hasDownloads) {
+    msg.textContent = `Captured ${payload.id} (${payload.duration_s}s, ${formatBytes(payload.size_bytes ?? 0)}) — saved locally. Tap to download:`;
   } else {
-    toast.textContent = `Captured ${payload.id} (${payload.duration_s}s, ${formatBytes(payload.size_bytes ?? 0)}) — copied. Paste into Claude.`;
+    msg.textContent = `Captured ${payload.id} (${payload.duration_s}s, ${formatBytes(payload.size_bytes ?? 0)}) — copied. Paste into Claude.`;
   }
-  setTimeout(() => { if (toast) toast.hidden = true; }, 8000);
+  toast.appendChild(msg);
+  if (downloads) {
+    for (const d of downloads) {
+      const a = document.createElement('a');
+      a.className = 'capture-download';
+      a.href = d.url;
+      a.download = d.filename;
+      a.textContent = `⬇ ${d.filename}`;
+      toast.appendChild(a);
+    }
+  }
+  // Auto-hide only when there's nothing to tap; keep download links on screen.
+  if (!hasDownloads) setTimeout(() => { if (toast) toast.hidden = true; }, 8000);
 }
 
 function mountCaptureBtn() {
@@ -1561,6 +1592,7 @@ function mountCaptureBtn() {
       let result: { id: string; size_bytes: number; duration_s: number; ts: string };
       let videoSizeBytes = 0;
       let videoUploadError: string | null = null;
+      let localDownloads: LocalDownload[] | undefined;
 
       if (hasBackend()) {
         diag('capture', `POST ${BACKEND_BASE}/api/recording starting (body=${jsonBody.length} bytes)`);
@@ -1611,7 +1643,9 @@ function mountCaptureBtn() {
         }
       } else {
         // BYO-backend default: no endpoint configured → save locally, touch no storage.
-        result = saveRecordingLocally(jsonBody, file.durationMs, videoBlob, videoExt);
+        const local = saveRecordingLocally(jsonBody, file.durationMs, videoBlob, videoExt);
+        result = local.result;
+        localDownloads = local.downloads;
         if (videoBlob) videoSizeBytes = videoBlob.size;
         diag('capture', `LOCAL save (no backend): id=${result.id} json=${formatBytes(result.size_bytes)}${videoBlob ? ` + ${formatBytes(videoBlob.size)} video` : ''}`);
       }
@@ -1634,7 +1668,7 @@ function mountCaptureBtn() {
       }
       diag('capture', `DONE: id=${result.id}${videoUploadError ? ` (video upload failed: ${videoUploadError})` : ''}`);
       diagFlush();
-      showToast({ ...result, size_bytes: result.size_bytes + videoSizeBytes }, true);
+      showToast({ ...result, size_bytes: result.size_bytes + videoSizeBytes }, true, localDownloads);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const stack = e instanceof Error && e.stack ? e.stack.slice(0, 500) : '';
