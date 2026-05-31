@@ -9,16 +9,11 @@ name = "web-ar-instrument"
 compatibility_date = "2025-01-01"
 pages_build_output_dir = "dist"
 
-# R2 bucket for captured recordings + diagnostics. Create your own bucket and bind
-# it as RECORDINGS. The bucket is reachable ONLY through the Access-gated functions.
-[[r2_buckets]]
-binding = "RECORDINGS"
-bucket_name = "REPLACE_WITH_YOUR_BUCKET"
-
-# Non-secret deploy config. These are public identifiers (a team domain, an Access
-# application AUD tag, an allowed origin) — NOT credentials. Set the real values in
-# your Pages project's environment variables.
-[vars]
-CF_ACCESS_TEAM_DOMAIN = "https://YOUR-TEAM.cloudflareaccess.com"
-CF_ACCESS_AUD = "REPLACE_WITH_YOUR_ACCESS_APP_AUD"
-ALLOWED_ORIGIN = "https://REPLACE_WITH_YOUR_DEPLOYMENT_ORIGIN"
+# Bindings and environment variables are configured in the Pages PROJECT settings
+# (dashboard → Settings → Variables and Bindings), NOT here — that keeps
+# `wrangler pages deploy` working from a clean checkout and keeps per-deployment values
+# out of the repo. A deployer configures, in the dashboard:
+#   - R2 bucket bound as RECORDINGS            (the recordings + diagnostics store)
+#   - CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD     (the Access app gating this deployment)
+#   - ALLOWED_ORIGIN                           (this deployment's own origin; never *)
+# See .env.example. For local `wrangler pages dev`, put these in an untracked .dev.vars.
