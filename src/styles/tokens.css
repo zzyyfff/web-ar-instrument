@@ -1,0 +1,17 @@
+/* Design tokens + minimal base reset. Self-contained — no CSS framework needed.
+   (The calibrator is a standalone tool; it used exactly one Tailwind utility,
+   which calibrator.css already covers, so Tailwind was dropped entirely.) */
+:root {
+  --bg: #0a0a0a;
+  --card: #171717;
+  --fg: #e5e5e5;
+  --muted: #737373;
+  --accent: #f97316;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); }
+* { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
