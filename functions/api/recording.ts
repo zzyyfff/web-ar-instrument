@@ -111,13 +111,22 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     })
   }
 
-  const list = await bucket.list({ prefix: 'recordings/', limit: 50 })
-  const items = list.objects
-    .map((o) => ({
-      id: o.key.replace(/^recordings\/(rec_[a-z0-9]+)\.json$/, '$1'),
-      size_bytes: o.size,
-      uploaded: o.uploaded,
-    }))
-    .sort((a, b) => b.uploaded.toString().localeCompare(a.uploaded.toString()))
+  // List recordings newest-first. R2 lists in KEY order, and the recordings/ prefix
+  // also contains the *.video.* siblings — so a naive limit-50 + map would drop newer
+  // recordings and emit malformed ids for video objects. Follow the cursor, keep only
+  // the JSON recording objects, sort by upload time, then take the newest 50.
+  const JSON_KEY_RE = /^recordings\/(rec_[a-z0-9]+)\.json$/
+  const all: Array<{ id: string; size_bytes: number; uploaded: Date }> = []
+  let cursor: string | undefined
+  do {
+    const page = await bucket.list({ prefix: 'recordings/', limit: 1000, cursor })
+    for (const o of page.objects) {
+      const m = o.key.match(JSON_KEY_RE)
+      if (m) all.push({ id: m[1], size_bytes: o.size, uploaded: o.uploaded })
+    }
+    cursor = page.truncated ? page.cursor : undefined
+  } while (cursor)
+  all.sort((a, b) => +new Date(b.uploaded) - +new Date(a.uploaded))
+  const items = all.slice(0, 50)
   return json(200, { count: items.length, items }, cors)
 }

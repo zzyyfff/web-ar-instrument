@@ -26,6 +26,10 @@ export function corsHeaders(request: Request, env: CorsEnv): Record<string, stri
       'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      // Safe ONLY because the origin is an exact match (never '*'): lets a
+      // cross-origin deployment send the Cloudflare Access cookie. Same-origin
+      // deployments don't need this, but it's correct to include here.
+      'Access-Control-Allow-Credentials': 'true',
       Vary: 'Origin',
     }
   }
