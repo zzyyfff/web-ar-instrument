@@ -1,13 +1,37 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Calibrator · web-ar-instrument</title>
-    <meta name="description" content="Web-AR motion calibration tool." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#000000" />
+    <title>AR Calibrator · web-ar-instrument</title>
+    <link rel="stylesheet" href="/src/styles/calibrator.css" />
+    <script type="module" src="/src/calibrator.ts"></script>
   </head>
   <body>
-    <main id="calibrator"></main>
-    <script type="module" src="/src/calibrator.ts"></script>
+    <div id="calibrator">
+      <div id="gate" class="gate">
+        <h1>AR Calibrator</h1>
+        <p>Live back-camera feed with a compass overlay. Tap to begin (needs camera + motion permission).</p>
+        <button id="proceed" class="primary">Tap to begin</button>
+        <div id="gate-diag" class="gate-diag"></div>
+      </div>
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="overlay"></canvas>
+      <div id="chrome">
+        <div id="build-pill"></div>
+        <button id="reload-btn" title="Force reload">↻</button>
+      </div>
+      <div id="capture-host"></div>
+      <div id="choreo-hud" style="display:none">
+        <div id="choreo-label"></div>
+        <div id="choreo-hint"></div>
+        <div id="choreo-countdown"></div>
+      </div>
+      <div id="status" hidden>
+        <div id="status-text"></div>
+        <div id="loader-bar" hidden><div></div></div>
+      </div>
+    </div>
   </body>
 </html>
