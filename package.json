@@ -14,10 +14,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p functions/tsconfig.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "jose": "^5.9.6"
+  },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
     "@types/node": "^22.10.0",
     "@types/three": "^0.184.1",
     "three": "^0.184.0",

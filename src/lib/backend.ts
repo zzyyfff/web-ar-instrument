@@ -12,14 +12,19 @@
  *   - diagnostics no-op (nothing is sent over the network)
  *   - captured recordings are saved to a local file download
  *
- * NOTE: the value here is a *base URL*, never a secret. Secrets (API tokens,
- * bucket names, Access policy) live in the deployer's environment / dashboard,
- * never in this repo. When the backend lands (P3), this becomes env-driven
- * (e.g. `import.meta.env.VITE_BACKEND_BASE`) so even the base URL isn't baked in.
+ * NOTE: this is a *base URL*, never a secret. Secrets (API tokens, bucket names,
+ * Access policy) live in the deployer's environment / dashboard, never in this repo.
+ * It is env-driven (VITE_BACKEND_BASE) so even the base URL isn't baked into the
+ * shared code — the public default (unset) is fully client-only.
  */
-export const BACKEND_BASE: string | null = null
+// Read at build time from the environment (Vite inlines VITE_* vars). Three states:
+//   unset    → null → no backend (client-only; capture saves to a local download)
+//   ""       → ""   → same-origin backend (deployed alongside this app: calls /api/*)
+//   full URL → that → a remote backend base
+const raw: string | undefined = import.meta.env.VITE_BACKEND_BASE
+export const BACKEND_BASE: string | null = raw === undefined ? null : raw
 
-/** True when a backend base URL is configured, so upload/diag are allowed. */
+/** True when a backend is configured (incl. same-origin ""), so upload/diag are allowed. */
 export function hasBackend(): boolean {
-  return typeof BACKEND_BASE === 'string' && BACKEND_BASE.length > 0
+  return BACKEND_BASE !== null
 }
