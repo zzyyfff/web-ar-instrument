@@ -1,19 +1,24 @@
 # Cloudflare Pages config for web-ar-instrument.
 #
-# This file is COMMITTED and contains NO SECRETS. The values below are placeholders;
-# a deployer sets the real binding + variables in their own Cloudflare Pages project
-# settings (dashboard) or a local untracked `.dev.vars` for `wrangler pages dev`.
-# Secrets (the CI deploy API token) live in GitHub Actions secrets, never here.
+# This file is COMMITTED and contains NO SECRETS. The R2 binding below is non-secret
+# deploy config (the bucket is sealed behind the Access-gated functions). Secret values
+# (Access AUD/team/origin) are Pages dashboard secrets; the CI deploy API token lives in
+# GitHub Actions secrets. A forker replaces the bucket name with their own.
 
 name = "web-ar-instrument"
 compatibility_date = "2025-01-01"
 pages_build_output_dir = "dist"
 
-# Bindings and environment variables are configured in the Pages PROJECT settings
-# (dashboard → Settings → Variables and Bindings), NOT here — that keeps
-# `wrangler pages deploy` working from a clean checkout and keeps per-deployment values
-# out of the repo. A deployer configures, in the dashboard:
-#   - R2 bucket bound as RECORDINGS            (the recordings + diagnostics store)
+# R2 bucket binding. For this project, bindings are managed via wrangler.toml (the
+# dashboard manages only Secrets). The bucket is reachable ONLY through the
+# Access-gated functions. A forker replaces the bucket name with their own.
+[[r2_buckets]]
+binding = "RECORDINGS"
+bucket_name = "web-ar-instrument-recordings"
+
+# Environment variables for this project are managed as Pages SECRETS in the dashboard
+# (Settings → Variables and Secrets), NOT here — keeping per-deployment values out of
+# this public repo. A deployer sets, as secrets:
 #   - CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD     (the Access app gating this deployment)
 #   - ALLOWED_ORIGIN                           (this deployment's own origin; never *)
 # See .env.example. For local `wrangler pages dev`, put these in an untracked .dev.vars.
