@@ -1,18 +1,33 @@
-# gizmo-portfolio offline analysis pipeline
+# Offline analysis pipeline (archived reference)
 
-Scripts for analyzing AR motion captures uploaded to R2 from the calibrator.
-Lives at `site/scripts/analysis/`. Install deps with:
+Python scripts that analyzed AR motion captures during the development of this
+toolkit's algorithms. **Archived reference implementations**, not turnkey
+software: they read recordings + write intermediate CSVs in a working directory
+and assume you supply your own capture data (see below). Install deps with:
 
 ```bash
 pip3 install --user -r requirements.txt
 ```
 
+## Working directory & data
+
+These scripts read raw recordings (full sensor JSON + composite video) and write
+intermediate CSVs under a working directory, **`/tmp/gizmo-recordings` by
+default**. Raw recordings are **not bundled** in this repo (large, capture-
+specific); supply your own:
+
+- Pre-place `rec_<id>.json` (+ optional `rec_<id>.mp4`) in `/tmp/gizmo-recordings`, or
+- Set `GIZMO_RECORDING_API` to your own deployed recording endpoint so
+  `analyze_recording.py` can fetch them (bring-your-own-backend — no endpoint
+  ships in this repo).
+
+The derived per-recording optical-flow outputs (`heading-comparison/*.flow.json`,
+`*.rot*.json`) ARE included as worked examples.
+
 ## Quick start
 
 ```bash
-# Analyze a recording end-to-end (downloads JSON + video, runs offline flow,
-# scores every algorithm against truth anchors)
-cd site/scripts/analysis
+# Score every algorithm against truth anchors for one recording
 python3 analyze_recording.py <rec_id>
 ```
 
@@ -25,11 +40,10 @@ OpenCV)" line is the reference signal.
 
 Canonical Python implementations of every algorithm shipped to the calibrator,
 plus a `simulate(<Class>, <rec_id>)` runner that returns per-sample bearings.
-Used by every other script that needs an algorithm output.
 
 Classes:
 - `EulerGamma`, `GravityCompass`, `CompassGated`, `GyroAnchored` — the IMU-only algorithms
-- `Mahony`, `Madgwick`, `TiltCompensatedCompass` — alternate filters (Mahony/Madgwick have known bugs in the current implementation, not yet validated)
+- `Mahony`, `Madgwick`, `TiltCompensatedCompass` — alternate filters (Mahony/Madgwick have known sign-convention bugs in the current implementation, not yet validated)
 - `CompassGatedTight`, `CompassPredictiveGated`, `AccuracyWeightedCompass` — variants of CompassGated
 
 `load_recording(rec_id)` reads the JSON, deserializes samples, and **applies
@@ -38,76 +52,62 @@ relative to RH-rule expectation).
 
 ### Optical flow (`visual_flow.py`, `visual_flow2.py`)
 
-Run OpenCV's pyramidal Lucas-Kanade on a recording's composite video.
-Outputs per-frame motion: rotation (image-plane roll), tx/ty translation,
-residuals. `visual_flow2.py` is the current canonical version; `visual_flow.py`
-is the first-pass kept for reference.
-
-Outputs `/tmp/gizmo-recordings/flow2-<rec_id>.csv`.
+Run OpenCV's pyramidal Lucas-Kanade on a recording's composite video. Outputs
+per-frame motion (image-plane roll, tx/ty translation, residuals) as a CSV in
+the working directory. `visual_flow2.py` is the current version; `visual_flow.py`
+is the first pass, kept for reference.
 
 ### Visual-inertial fusion (`visual_inertial3.py`)
 
-The canonical Python implementation of the production fusion algorithm.
-Combines compass + gyro + (gated) visual flow into a yaw estimate per
-orientation sample. **This is the offline reference for `?algo=visual-inertial`.**
-
-Outputs `/tmp/gizmo-recordings/vi3-<rec_id>.csv`.
-
-`visual_inertial.py` and `visual_inertial2.py` are superseded — keep until v3 is canonized.
+Python implementation of the production fusion algorithm: compass + gyro +
+(gated) visual flow into a yaw estimate per orientation sample. Offline reference
+for the calibrator's `?algo=visual-inertial`. `visual_inertial.py` / `2.py` are
+superseded, kept for provenance.
 
 ### End-to-end runner (`analyze_recording.py`)
 
-Orchestrates: downloads JSON + video from R2, runs flow + fusion, scores all
-algorithms against truth anchors, prints comparison table. The one-command
-analysis tool.
+Orchestrates: fetch/locate recording, run flow + fusion (invoking the sibling
+scripts in this directory), score all algorithms against truth anchors, print a
+comparison table.
 
 ### Validation harness (`lk-test/`)
 
-Synthetic-rotation tests for the vanilla-JS LK port. Compares JS-LK output
-against OpenCV-LK on the same frame pairs. Confirmed both pipelines have
-the same sign convention. Run via `npx tsx lk-test/test_synthetic.ts` from
-the `site/` directory.
+Synthetic-rotation tests for the vanilla-JS LK port (imports `src/lib/lucas-kanade`
+from this repo). Confirms the JS-LK and OpenCV-LK pipelines share a sign
+convention. These read synthetic frame fixtures from `/tmp/gizmo-analysis/lk-test/`
+which are **not bundled** — generate or place your own raw frames there before
+running (e.g. `npx tsx research/analysis/lk-test/test_synthetic.ts`).
 
 ## Truth-anchor methodology
 
 Every algorithm score uses **upright-moment compass anchors** as truth.
 
-The idea: iOS `webkitCompassHeading` IS reliable when the phone is held
-near-vertical with no significant roll. It's only unreliable at high γ
-(the bug we've been chasing). So:
+iOS `webkitCompassHeading` is reliable when the phone is held near-vertical with
+no significant roll; it's unreliable at high γ. So:
 
 1. Filter `samples` for `kind=='o'` AND `|γ|<10°` AND `β>70°`
 2. Cluster consecutive samples into "upright moments" (gap > 100ms = new cluster)
-3. Take the median time and median compass per cluster
-4. That's the truth bearing at that moment
+3. Take the median time and median compass per cluster — the truth bearing
 
 Algorithm error = `((algo_bearing_at_t - truth_compass + 540) % 360) - 180`.
 
-This isn't perfect — it relies on iOS compass being correct at γ≈0 — but
-empirically the compass error stdev at upright is <4° (validated against
-multiple recordings on the same target).
-
-For the controlled fireplace captures (rec_1c, 6z, 5z, 1f, 3f), the camera
-is held on the mantel at compass ≈ **335° NW**. Confirmed empirically from
-upright-cluster averages.
+This relies on iOS compass being correct at γ≈0, but empirically the compass
+error stdev at upright is <4° (validated across multiple recordings of a fixed
+target).
 
 ## Sensor convention quick-ref
 
 iOS via web APIs:
-- `accelerationIncludingGravity` reports the **gravity vector itself** (not specific force). Vertical phone → `(0, -9.8, 0)`. So world-UP in phone frame = `-gravity / |gravity|`.
+- `accelerationIncludingGravity` reports the **gravity vector itself** (not specific force). Vertical phone → `(0, -9.8, 0)`. World-UP in phone frame = `-gravity / |gravity|`.
 - `rotationRate.gamma` sign is flipped vs RH-rule. Always apply `-r.g` on ingest (filters.py does this).
-- `webkitCompassHeading` is the bearing of phone +Y axis projected onto horizontal. At vertical phone with γ=0, iOS uses a heuristic to give camera-forward bearing.
+- `webkitCompassHeading` is the bearing of phone +Y axis projected onto horizontal.
 - iOS rotationRate is in **deg/s** per W3C spec; convert to rad/s before mixing with radian-domain math.
 
-## Recordings format
+## Recording JSON format
 
-See the schema comment at the top of `site/functions/api/recording.ts` in the
-gizmo-portfolio repo. Most recent versions are 0.2 (which adds `compVideo`
-metadata). 0.1 recordings exist (before composite video was added) — they
-still work but have no `compVideo` field and no `.video.mp4` companion file.
-
-## TODO
-
-- Move into repo at `site/scripts/analysis/`
-- Fix Mahony+Madgwick (currently RMS 70-100°; my sign conventions are off)
-- Add a `--bisect` mode that runs algorithm variants side-by-side
+A recording is `{durationMs, buildId, url, samples: [...]}` where each sample has
+a `t` (ms), a `kind` (`'o'` orientation, `'m'` motion), and the corresponding
+fields (`webkitCompassHeading`, `alpha/beta/gamma`, `rot`, `acc`). Some
+recordings also carry `overlayStates` (per-snapshot live LK diagnostics) and
+`compVideo` metadata for the composite video. Recordings without `compVideo`
+predate composite video and have no `.mp4` companion.

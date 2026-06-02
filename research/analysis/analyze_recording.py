@@ -19,7 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent))
+_HERE = str(Path(__file__).parent)
+sys.path.insert(0, _HERE)
 from filters import simulate, EulerGamma, GravityCompass, CompassGated, GyroAnchored
 
 
@@ -58,7 +59,7 @@ def run_opencv_flow(video_path, sensor_path, out_csv):
     """Run OpenCV optical flow and write the result CSV (used by visual_inertial3 fusion)."""
     if os.path.exists(out_csv):
         return
-    cmd = ['python3', '/tmp/gizmo-analysis/visual_flow2.py']
+    cmd = ['python3', f'{_HERE}/visual_flow2.py']
     # visual_flow2 takes a rec_id; derive
     rec_id = Path(sensor_path).stem.replace('rec_', '')
     subprocess.run(cmd + [rec_id], check=True)
@@ -105,11 +106,11 @@ def main(rec_id):
         flow_csv = f'{base}/flow2-{rec_id}.csv'
         if not os.path.exists(flow_csv):
             print(f'  running OpenCV flow → {flow_csv}')
-            subprocess.run(['python3', '/tmp/gizmo-analysis/visual_flow2.py', rec_id], check=True)
+            subprocess.run(['python3', f'{_HERE}/visual_flow2.py', rec_id], check=True)
         # And run the fusion v3
         vi_csv = f'{base}/vi3-{rec_id}.csv'
         if not os.path.exists(vi_csv):
-            subprocess.run(['python3', '/tmp/gizmo-analysis/visual_inertial3.py', rec_id], check=True)
+            subprocess.run(['python3', f'{_HERE}/visual_inertial3.py', rec_id], check=True)
 
     # Score all algorithms
     print(f'\n  {"algo":<24} {"RMS":>5} {"max":>5}')

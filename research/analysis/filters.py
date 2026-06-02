@@ -1,9 +1,9 @@
 """
 Offline simulation harness for AR orientation filters.
 
-Loads R2 recordings, runs each candidate filter against the raw sensor stream,
-emits per-sample bearing output. Ground truth: during the controlled fireplace
-captures (1c, 6z), the camera was held on the mantel at compass≈335° (NW).
+Loads recordings, runs each candidate filter against the raw sensor stream,
+emits per-sample bearing output. Ground truth for the bundled example captures
+is a fixed reference compass bearing held throughout (see `ref_bearing`).
 
 All filters operate on a merged event stream (orientation + motion), output a
 quaternion representing the camera-to-world rotation (three.js convention:
@@ -1044,7 +1044,7 @@ if __name__ == '__main__':
     for cls in filters:
         for rec in recs:
             r = simulate(cls, rec)
-            # error vs truth=335° during the controlled fireplace captures
+            # error vs the fixed reference bearing for the example captures
             err = ((r.bearings_deg - 335 + 540) % 360) - 180
             up_mask = (np.abs(r.gamma) < 15) & (r.beta > 70)
             pr_mask = r.gamma > 60
