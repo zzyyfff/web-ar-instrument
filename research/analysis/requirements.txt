@@ -1,0 +1,8 @@
+# Offline analysis pipeline dependencies.
+# Install with: pip3 install --user -r requirements.txt
+#
+# Stdlib + json/csv/math are sufficient for filters.py + visual_inertial*.py.
+# The visual_flow*.py scripts need OpenCV; analyze_recording.py runs the full pipeline.
+opencv-python-headless>=4.10
+numpy>=2.0
+pillow>=10.0

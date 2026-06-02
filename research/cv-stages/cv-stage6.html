@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>cv-stage6: stage4 + cvLib wrapper only (no setStatus, no new listeners)</title>
+  <style>
+    body { font: 18px monospace; background: #000; color: #fff; padding: 12px; line-height: 1.4; margin: 0; }
+    #log { white-space: pre-wrap; word-break: break-word; font-size: 16px; position: relative; z-index: 5; }
+    .ok { color: #4ade80; }
+    .err { color: #f87171; }
+    .tick { color: #fbbf24; }
+    h2 { margin: 0 0 8px 0; font-size: 22px; position: relative; z-index: 5; }
+    .sid { font-size: 18px; color: #fff; background: #1f2937; padding: 6px 10px; border-radius: 6px; margin-bottom: 12px; position: relative; z-index: 5; }
+    #gate-wrap-flex { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; position: relative; z-index: 5; padding: 16px; }
+    #gate-wrap-flex button { font: 18px monospace; padding: 18px 30px; background: #fb923c; color: #000; border: 0; border-radius: 12px; font-weight: bold; }
+    .gate-diag { width: 100%; max-width: 600px; height: 240px; overflow-y: auto; background: rgba(0,0,0,0.85); border: 1px solid #444; border-radius: 6px; padding: 6px; margin-top: 12px; font: 12px monospace; color: #fbbf24; }
+    .gate-diag div { padding: 1px 0; }
+    #verdict { padding: 16px; border-radius: 8px; margin: 12px 0; font-size: 22px; font-weight: bold; text-align: center; position: relative; z-index: 5; }
+    #verdict.pending { background: #1f2937; color: #fbbf24; }
+    #verdict.ok { background: #064e3b; color: #4ade80; }
+    #verdict.err { background: #7f1d1d; color: #fca5a5; }
+    #video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; z-index: 0; }
+    #overlay { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+    #chrome { position: fixed; top: 8px; right: 8px; z-index: 4; display: flex; gap: 6px; }
+    #build-pill { background: #1f2937; color: #fff; padding: 4px 8px; border-radius: 4px; font: 12px monospace; }
+    #reload-btn { background: #1f2937; color: #fff; border: 0; padding: 4px 8px; border-radius: 4px; }
+    #capture-host { position: fixed; bottom: 8px; right: 8px; z-index: 4; }
+    #status { position: fixed; bottom: 8px; left: 8px; right: 8px; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 4px; z-index: 4; color: #fff; }
+    #loader-bar { height: 4px; background: #444; margin-top: 4px; }
+    #loader-bar > div { height: 100%; background: #4ade80; width: 0%; }
+  </style>
+  <script type="module" src="/src/cv-stage6.ts"></script>
+</head>
+<body class="bg-black">
+  <div id="calibrator">
+    <div id="gate-wrap-flex">
+      <h2>cv-stage6: + cvLib wrapper only</h2>
+      <div class="sid">Session ID: <span id="sid"></span></div>
+      <button id="go">Tap to begin</button>
+      <div id="gate-diag" class="gate-diag"></div>
+      <div id="verdict" class="pending" style="display:none">Running tests…</div>
+      <div id="log"></div>
+    </div>
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="overlay"></canvas>
+    <div id="chrome">
+      <div id="build-pill">stage6</div>
+      <button id="reload-btn" title="Force reload">↻</button>
+    </div>
+    <div id="capture-host"></div>
+    <div id="status" hidden>
+      <div id="status-text"></div>
+      <div id="loader-bar" hidden><div></div></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,153 @@
+// cv-stage13: stage 12 + calibrator's diag pipeline (boot + env + diagFlush
+// at module init, which kicks off a sendBeacon/fetch right before cv load).
+
+import { toGray, buildPyramid, detectFeatures, trackFeatures, fitSimilarity } from './lib/lucas-kanade';
+void [toGray, buildPyramid, detectFeatures, trackFeatures, fitSimilarity];
+
+const sessionId = 'cv13' + Math.random().toString(36).slice(2, 8);
+document.getElementById('sid')!.textContent = sessionId;
+const verdict = document.getElementById('verdict') as HTMLDivElement;
+const log = document.getElementById('log') as HTMLDivElement;
+
+const t0 = performance.now();
+const diagUrl = `${location.origin}/api/diag?session=${sessionId}`;
+
+// === Worker pipeline for reliable diag posting (so we see logs even if main blocks) ===
+const workerCode = `
+  const DIAG_URL = ${JSON.stringify(diagUrl)};
+  const buffer = [];
+  setInterval(async () => {
+    if (buffer.length === 0) return;
+    const batch = buffer.splice(0);
+    try { await fetch(DIAG_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(batch) }); }
+    catch (e) { buffer.unshift(...batch); }
+  }, 200);
+  self.onmessage = (ev) => { if (ev.data && ev.data.type === 'log') buffer.push(ev.data.entry); };
+`;
+const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+const workerInst = new Worker(URL.createObjectURL(workerBlob));
+
+const line = (cls: string, msg: string) => {
+  const tSec = (performance.now() - t0) / 1000;
+  workerInst.postMessage({ type: 'log', entry: { t: tSec, cls, msg } });
+  const div = document.createElement('div');
+  div.className = cls;
+  div.textContent = `[${tSec.toFixed(2)}s] ${msg}`;
+  log.appendChild(div);
+  while (log.children.length > 100) log.firstChild && log.removeChild(log.firstChild);
+};
+window.addEventListener('error', (e) => line('err', `WINDOW ERROR: ${e.message}`));
+window.addEventListener('unhandledrejection', (e) => line('err', `UNHANDLED REJECTION: ${(e as PromiseRejectionEvent).reason}`));
+line('tick', `UA: ${navigator.userAgent}`);
+line('tick', `Stage13: stage 12 + calibrator-style diag pipeline at module init`);
+
+// =====================================================================
+// THE ADDITION — copied verbatim from calibrator.ts (diag pipeline block).
+// Uses its OWN session for posting (NOT the worker's session, to mirror the
+// calibrator's actual behavior where diag posts via sendBeacon/fetch from the
+// main thread before cv loads).
+// =====================================================================
+const diagSession = 'calib13_' + Math.random().toString(36).slice(2, 8);
+console.log(`[stage13] diag session: ${diagSession}`);
+const diagBuffer: Array<{ t: number; tag: string; msg: string; data?: unknown }> = [];
+const diagStart = performance.now();
+let diagFlushTimer: number | null = null;
+function diagFlush() {
+  diagFlushTimer = null;
+  if (diagBuffer.length === 0) return;
+  const batch = diagBuffer.splice(0);
+  const body = JSON.stringify(batch);
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'application/json' });
+      const ok = navigator.sendBeacon(`/api/diag?session=${diagSession}`, blob);
+      if (ok) return;
+    }
+  } catch { /* fall through */ }
+  fetch(`/api/diag?session=${diagSession}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true,
+  }).catch(() => {});
+}
+function diag(tag: string, msg: string, data?: unknown) {
+  const t = (performance.now() - diagStart) / 1000;
+  diagBuffer.push({ t, tag, msg, data });
+  try {
+    const panel = document.getElementById('gate-diag');
+    if (panel) {
+      const cls = tag === 'window' ? 'err' : tag.startsWith('chain') ? 'ok' : tag === 'heartbeat' ? 'info' : tag === 'env' ? 'meta' : 'tick';
+      const el = document.createElement('div');
+      el.className = cls;
+      el.textContent = `[${t.toFixed(2)}s] ${tag} · ${msg}`;
+      panel.appendChild(el);
+      panel.scrollTop = panel.scrollHeight;
+    }
+  } catch {}
+  if (!diagFlushTimer) diagFlushTimer = window.setTimeout(diagFlush, 1500);
+}
+window.addEventListener('pagehide', () => diagFlush());
+window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') diagFlush(); });
+window.addEventListener('error', (e) => { diag('window', `ERROR ${e.message}`); diagFlush(); });
+window.addEventListener('unhandledrejection', (e) => { diag('window', `UNHANDLED ${String(e.reason).slice(0, 200)}`); diagFlush(); });
+diag('boot', `algo=visual-inertial-cv ua=${navigator.userAgent}`);
+(() => {
+  try {
+    const env: Record<string, unknown> = {
+      platform: navigator.platform,
+      cores: navigator.hardwareConcurrency,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      dpr: window.devicePixelRatio,
+      wasm: typeof WebAssembly,
+      worker: typeof Worker,
+      sendBeacon: typeof navigator.sendBeacon,
+      mediaRecorder: typeof MediaRecorder,
+      getUserMedia: typeof navigator.mediaDevices?.getUserMedia === 'function',
+    };
+    diag('env', JSON.stringify(env));
+  } catch (e) { diag('env', `error: ${e}`); }
+})();
+diagFlush(); // <-- THE NETWORK FETCH AT MODULE INIT (sendBeacon)
+// =====================================================================
+// END addition
+// =====================================================================
+
+// === INLINE cv-load — IDENTICAL to stage 11/12 ===
+const URL_CV = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js';
+const t1 = performance.now();
+type W = { Module?: { onRuntimeInitialized?: () => void }; cv?: { Mat?: new () => { rows: number; delete: () => void } } };
+const w = window as unknown as W;
+w.Module = { onRuntimeInitialized: () => { line('ok', `Module.onRuntimeInitialized at +${((performance.now() - t1) / 1000).toFixed(2)}s`); } };
+const s = document.createElement('script');
+s.src = URL_CV;
+s.onload = () => { line('ok', `<script> onload at +${((performance.now() - t1) / 1000).toFixed(2)}s. cv=${typeof w.cv}, cv.Mat=${typeof w.cv?.Mat}`); };
+s.onerror = (e) => line('err', `<script> onerror: ${e}`);
+document.head.appendChild(s);
+
+const poll = setInterval(() => {
+  const cv = w.cv;
+  const keys = cv ? Object.keys(cv).length : 0;
+  if (cv && cv.Mat) {
+    clearInterval(poll);
+    try {
+      const m = new cv.Mat();
+      line('ok', `STAGE13 PASSED: cv.Mat at +${((performance.now() - t1) / 1000).toFixed(2)}s. rows=${m.rows}, keys=${keys}`);
+      m.delete();
+      verdict.className = 'ok';
+      verdict.textContent = `✓ STAGE13 PASSED`;
+    } catch (e) {
+      line('err', `STAGE13 FAIL: ${(e as Error).message}`);
+      verdict.className = 'err';
+      verdict.textContent = `✗ STAGE13 FAIL`;
+    }
+  } else {
+    line('tick', `poll: cv=${typeof cv}, keys=${keys}, Mat=${typeof cv?.Mat}`);
+  }
+}, 2000);
+
+setTimeout(() => {
+  if (verdict.className !== 'ok') {
+    clearInterval(poll);
+    line('err', `STAGE13 TIMEOUT at 30s`);
+    verdict.className = 'err';
+    verdict.textContent = `✗ STAGE13 TIMEOUT`;
+  }
+}, 30_000);
